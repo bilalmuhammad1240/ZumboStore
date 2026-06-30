@@ -1,6 +1,7 @@
 # Zumbo Store — Guia de Setup
 
-> Sprint 1 completo: Módulos 1 (Configuração Base) + 2 (Autenticação)
+> Schema Supabase dedicado: **`zumbo`** (projecto partilhado com outras apps)
+> Progresso: Sprint 1 e 2 completos (Módulos 1–7) · Sprint 3 em curso (Módulos 8–12)
 
 ---
 
@@ -8,7 +9,7 @@
 
 - Node.js 20+
 - npm 10+
-- Conta Supabase (projeto criado)
+- Projecto Supabase existente (partilhado — não criar um novo)
 - Conta Vercel (para deploy)
 
 ---
@@ -19,8 +20,7 @@
 npm install
 ```
 
-> **Nota:** O `tailwindcss-animate` é necessário para as animações Shadcn.
-> Se não estiver no package.json, adicionar: `npm install tailwindcss-animate`
+> Se faltar: `npm install tailwindcss-animate`
 
 ---
 
@@ -41,53 +41,89 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ---
 
-## 3. Aplicar migrations no Supabase
+## 3. Aplicar migrations — ORDEM OBRIGATÓRIA
+
+Todas as tabelas da Zumbo Store vivem no schema **`zumbo`**, isolado do `public`
+para não colidir com outras aplicações no mesmo projecto Supabase.
+
+As migrations têm dependências entre si — **aplicar sempre por esta ordem**:
+
+| # | Ficheiro | Conteúdo |
+|---|----------|----------|
+| 1 | `0000_schema.sql`    | Cria o schema `zumbo`, grants, função `set_updated_at()` |
+| 2 | `0001_settings.sql`  | `user_profiles` (criada primeiro — é referenciada pelas restantes), `settings`, `company`, `seo_settings` |
+| 3 | `0002_auth.sql`      | `user_sessions`, `role_permissions`, função `has_permission()` |
+| 4 | `0003_catalog.sql`   | `categories`, `brands`, `attributes`, `attribute_values` |
+| 5 | `0004_products.sql`  | `products`, `product_images`, `product_videos`, `product_variants`, etc. |
+| 6 | `0005_stock.sql`     | `stock`, `stock_movements`, view `stock_alert` |
+| 7 | `0006_suppliers.sql` | `suppliers`, `purchase_orders`, `purchase_items` |
+| 8 | `0007_store.sql`     | `banners`, `wishlists`, `carts`, `cart_items`, `search_logs` |
 
 ### Via Supabase CLI (recomendado)
 
 ```bash
-# Instalar CLI (se não tiver)
 npm install -g supabase
-
-# Ligar ao projecto remoto
 supabase link --project-ref SEU_PROJECT_REF
-
-# Aplicar migrations
 supabase db push
 ```
 
-### Alternativa: SQL Editor no Dashboard
+O CLI aplica as migrations em `supabase/migrations/` pela ordem alfabética dos
+nomes de ficheiro — por isso o prefixo numérico (`0000`, `0001`…) é importante.
 
-1. Abrir Supabase Dashboard → SQL Editor
-2. Executar `supabase/migrations/0001_settings.sql`
-3. Executar `supabase/migrations/0002_auth.sql`
+### Via SQL Editor do Dashboard (alternativa)
+
+Executar cada ficheiro **na ordem da tabela acima**, um de cada vez, colando o
+conteúdo completo no SQL Editor e correndo com "Run".
+
+> ⚠️ **Erro comum:** `relation "zumbo.user_profiles" does not exist`
+> Significa que `0001_settings.sql` não foi corrido por inteiro, ou os
+> ficheiros foram aplicados fora de ordem. Dentro do próprio `0001_settings.sql`,
+> a tabela `user_profiles` é criada **antes** de `settings`/`company`/`seo_settings`
+> porque as políticas RLS destas últimas referenciam `zumbo.user_profiles`.
 
 ---
 
-## 4. Configurar autenticação no Supabase
+## 4. Expor o schema `zumbo` na API Supabase
 
-No Dashboard Supabase → Authentication → URL Configuration:
+**Passo obrigatório** — sem isto, o PostgREST não responde a pedidos para o
+schema `zumbo` e todas as chamadas do projecto falham com 404/406.
 
 ```
+Supabase Dashboard → Settings → API → Exposed schemas
+→ adicionar "zumbo" à lista (mantendo "public" se outras apps precisarem dele)
+→ Guardar
+```
+
+---
+
+## 5. Configurar autenticação no Supabase
+
+```
+Authentication → URL Configuration
 Site URL:           http://localhost:3000
 Redirect URLs:      http://localhost:3000/api/auth/callback
 ```
 
-Em produção substituir pelo domínio real (`https://zumbostore.co.mz`).
+Em produção, substituir pelo domínio real (`https://zumbostore.co.mz`).
 
 ---
 
-## 5. Gerar tipos TypeScript
+## 6. Gerar tipos TypeScript
 
 ```bash
 npm run db:types
 ```
 
-Substitui o stub `src/types/database.types.ts` pelos tipos reais do schema.
+Por defeito o Supabase CLI gera tipos do schema `public`. Para gerar do
+schema `zumbo`, ajustar o script em `package.json` ou correr manualmente:
+
+```bash
+supabase gen types typescript --schema zumbo --local > src/types/database.types.ts
+```
 
 ---
 
-## 6. Iniciar em desenvolvimento
+## 7. Iniciar em desenvolvimento
 
 ```bash
 npm run dev
@@ -97,13 +133,13 @@ Abrir [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 7. Criar o primeiro superadmin
+## 8. Criar o primeiro superadmin
 
-Após registar a primeira conta via `/auth/register`, actualizar o role
-directamente no Supabase Dashboard → Table Editor → `user_profiles`:
+Registar a primeira conta via `/auth/register`, depois no Supabase Dashboard
+→ SQL Editor:
 
 ```sql
-UPDATE public.user_profiles
+UPDATE zumbo.user_profiles
 SET role = 'superadmin'
 WHERE id = 'UUID_DO_SEU_UTILIZADOR';
 ```
@@ -112,61 +148,64 @@ Depois aceder a `/admin`.
 
 ---
 
-## Estrutura de ficheiros — Sprint 1
+## Convenções importantes do projecto
+
+- **Todas as queries passam por `serverDB()` ou `adminDB()`** (`src/lib/supabase/db.ts`),
+  que aplicam `.schema("zumbo")` automaticamente. Nunca chamar `createClient()` /
+  `createAdminClient()` directamente nos repositórios — sempre via este helper.
+- **Buckets de Storage** têm prefixo `zumbo-` (ex: `zumbo-products`, `zumbo-banners`)
+  para não colidir com buckets de outras apps no mesmo projecto.
+- **RLS em todas as tabelas**, com policies baseadas em `zumbo.has_permission()`
+  para regras granulares por role.
+
+---
+
+## Estrutura de ficheiros
 
 ```
 src/
 ├── actions/
-│   ├── auth.ts                    # Login, Register, Logout, Reset
-│   └── admin/settings.ts          # CRUD configurações admin
+│   ├── auth.ts
+│   └── admin/{settings,catalog,products,stock}.ts
 ├── app/
-│   ├── (admin)/
-│   │   ├── layout.tsx             # Guard requireAdmin()
-│   │   └── admin/
-│   │       ├── page.tsx           # Dashboard executivo
-│   │       └── configuracoes/     # 5 páginas de configurações
-│   ├── (auth)/
-│   │   ├── layout.tsx             # Card centrado com logo
-│   │   └── auth/
-│   │       ├── login/             # Entrar
-│   │       ├── register/          # Criar conta
-│   │       ├── recuperar-senha/   # Forgot password
-│   │       ├── nova-senha/        # Reset password
-│   │       └── verificar-email/   # Confirmar email
-│   ├── (customer)/
-│   │   ├── layout.tsx             # Sidebar conta cliente
-│   │   └── conta/page.tsx         # Dashboard cliente
+│   ├── (admin)/admin/{produtos,categorias,marcas,estoque,configuracoes}/
+│   ├── (auth)/auth/{login,register,recuperar-senha,nova-senha,verificar-email}/
+│   ├── (customer)/conta/
 │   ├── (public)/
-│   │   ├── layout.tsx
-│   │   └── page.tsx               # Home (placeholder)
-│   ├── api/auth/callback/         # OAuth callback Supabase
-│   ├── globals.css                # CSS variables + Tailwind
-│   ├── layout.tsx                 # Root layout (fonts, Toaster)
-│   └── not-found.tsx
-├── components/
-│   ├── common/FormMessage.tsx
-│   └── layout/
-│       ├── AdminHeader.tsx
-│       └── AdminSidebar.tsx
+│   └── api/auth/callback/
+├── components/{admin,common,layout}/
 ├── lib/
-│   ├── supabase/                  # client, server, middleware, admin
-│   ├── utils/                     # logger, currency, phone, slug, helpers, cn
-│   └── constants/                 # provinces, payment-methods
-├── repositories/settings.repository.ts
-├── services/settings.service.ts
-├── types/                         # auth.types, settings.types, database.types
-└── validators/                    # auth.validator, settings.validator
+│   ├── supabase/{client,server,middleware,admin,db}.ts
+│   ├── utils/{logger,currency,phone,slug,helpers,cn}.ts
+│   └── constants/{provinces,payment-methods}.ts
+├── repositories/  (catalog, product, stock, settings, supplier, cart)
+├── services/      (catalog, product, stock, settings)
+├── types/         (auth, settings, catalog, product, stock, supplier, cart)
+└── validators/    (auth, settings, catalog)
+
 supabase/migrations/
-├── 0001_settings.sql              # settings, company, seo_settings, user_profiles
-└── 0002_auth.sql                  # user_sessions, role_permissions, has_permission()
+0000_schema.sql    → cria schema zumbo
+0001_settings.sql  → user_profiles, settings, company, seo
+0002_auth.sql       → sessions, role_permissions
+0003_catalog.sql    → categories, brands, attributes
+0004_products.sql   → products, variants, images
+0005_stock.sql      → stock, movements
+0006_suppliers.sql  → suppliers, purchase orders
+0007_store.sql      → banners, wishlists, carts, search_logs
 ```
 
 ---
 
-## Próximo: Sprint 2 — Módulos 3, 4, 5, 6, 7
+## Progresso — Roadmap de 36 Módulos
 
-- **Módulo 3:** Categorias com hierarquia infinita + CRUD admin
-- **Módulo 4:** Marcas / Fabricantes + CRUD admin
-- **Módulo 5:** Produtos (CRUD completo, galeria, SEO)
-- **Módulo 6:** Variações (cor, tamanho, capacidade)
-- **Módulo 7:** Estoque (entradas, saídas, ajustes, histórico)
+| Sprint | Módulos | Estado |
+|--------|---------|--------|
+| 1 | 1–2 (Config Base, Autenticação) | ✅ Completo |
+| 2 | 3–7 (Categorias, Marcas, Produtos, Variações, Estoque) | ✅ Completo |
+| 3 | 8–12 (Fornecedores, Home, Pesquisa, Favoritos, Carrinho) | 🔄 Em curso |
+| 4 | 13–18 (Checkout, Pagamentos, Pedidos) | ⏳ Pendente |
+| 5 | 19–25 (Conta Cliente, Avaliações, Marketing) | ⏳ Pendente |
+| 6 | 26–29 (Logística, Suporte, FAQ) | ⏳ Pendente |
+| 7 | 30–31 (Blog, Páginas) | ⏳ Pendente |
+| 8 | 32–33 (Analytics, Relatórios) | ⏳ Pendente |
+| 9 | 34–36 (Recomendações, Notificações, Mobile) | ⏳ Pendente |

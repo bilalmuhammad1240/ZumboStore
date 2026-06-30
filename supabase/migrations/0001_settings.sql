@@ -2,9 +2,68 @@
 -- ZUMBO STORE — Migration 0001
 -- Módulo 1: Configuração Base + Autenticação
 -- Schema: zumbo
+--
+-- ORDEM CRÍTICA: user_profiles é criada PRIMEIRO porque settings, company
+-- e seo_settings têm RLS policies que referenciam zumbo.user_profiles.
+-- Não reordenar sem ajustar as policies.
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ---------------------------------------------------------------------------
+-- TABELA: zumbo.user_profiles  (criada primeiro — é referenciada por todas
+-- as outras policies deste ficheiro)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS zumbo.user_profiles (
+  id           UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  role         TEXT NOT NULL DEFAULT 'customer'
+                 CHECK (role IN ('customer','operator','manager','admin','superadmin')),
+  full_name    TEXT,
+  phone        TEXT,
+  avatar_url   TEXT,
+  birth_date   DATE,
+  gender       TEXT CHECK (gender IN ('M','F','other')),
+  is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE zumbo.user_profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "zumbo_profiles_public_read" ON zumbo.user_profiles
+  FOR SELECT USING (true);
+
+CREATE POLICY "zumbo_profiles_self_update" ON zumbo.user_profiles
+  FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "zumbo_profiles_admin_all" ON zumbo.user_profiles
+  FOR ALL USING (
+    EXISTS (SELECT 1 FROM zumbo.user_profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','superadmin'))
+  );
+
+-- Trigger: criar profile automaticamente após signup (padrão mozmarkethub)
+CREATE OR REPLACE FUNCTION zumbo.handle_new_user()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = zumbo AS $$
+BEGIN
+  INSERT INTO zumbo.user_profiles (id, full_name, phone, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', SPLIT_PART(NEW.email,'@',1)),
+    NEW.raw_user_meta_data->>'phone',
+    COALESCE(NEW.raw_user_meta_data->>'role','customer')
+  );
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_zumbo_auth_user_created ON auth.users;
+CREATE TRIGGER on_zumbo_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION zumbo.handle_new_user();
+
+CREATE TRIGGER trg_zumbo_profiles_updated_at
+  BEFORE UPDATE ON zumbo.user_profiles
+  FOR EACH ROW EXECUTE FUNCTION zumbo.set_updated_at();
 
 -- ---------------------------------------------------------------------------
 -- TABELA: zumbo.settings
@@ -115,60 +174,6 @@ VALUES (
 
 CREATE TRIGGER trg_zumbo_seo_updated_at
   BEFORE UPDATE ON zumbo.seo_settings
-  FOR EACH ROW EXECUTE FUNCTION zumbo.set_updated_at();
-
--- ---------------------------------------------------------------------------
--- TABELA: zumbo.user_profiles
--- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS zumbo.user_profiles (
-  id           UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  role         TEXT NOT NULL DEFAULT 'customer'
-                 CHECK (role IN ('customer','operator','manager','admin','superadmin')),
-  full_name    TEXT,
-  phone        TEXT,
-  avatar_url   TEXT,
-  birth_date   DATE,
-  gender       TEXT CHECK (gender IN ('M','F','other')),
-  is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-ALTER TABLE zumbo.user_profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "zumbo_profiles_public_read" ON zumbo.user_profiles
-  FOR SELECT USING (true);
-
-CREATE POLICY "zumbo_profiles_self_update" ON zumbo.user_profiles
-  FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "zumbo_profiles_admin_all" ON zumbo.user_profiles
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM zumbo.user_profiles p WHERE p.id = auth.uid() AND p.role IN ('admin','superadmin'))
-  );
-
--- Trigger: criar profile automaticamente após signup (padrão mozmarkethub)
-CREATE OR REPLACE FUNCTION zumbo.handle_new_user()
-RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = zumbo AS $$
-BEGIN
-  INSERT INTO zumbo.user_profiles (id, full_name, phone, role)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', SPLIT_PART(NEW.email,'@',1)),
-    NEW.raw_user_meta_data->>'phone',
-    COALESCE(NEW.raw_user_meta_data->>'role','customer')
-  );
-  RETURN NEW;
-END;
-$$;
-
-DROP TRIGGER IF EXISTS on_zumbo_auth_user_created ON auth.users;
-CREATE TRIGGER on_zumbo_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION zumbo.handle_new_user();
-
-CREATE TRIGGER trg_zumbo_profiles_updated_at
-  BEFORE UPDATE ON zumbo.user_profiles
   FOR EACH ROW EXECUTE FUNCTION zumbo.set_updated_at();
 
 -- ---------------------------------------------------------------------------
