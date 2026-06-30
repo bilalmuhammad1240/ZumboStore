@@ -1,0 +1,150 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   CSS Variables — Shadcn UI + Zumbo Store Brand
+   ========================================================================== */
+
+@layer base {
+  :root {
+    /* --- Shadcn tokens (tema claro) --- */
+    --background:   0 0% 100%;
+    --foreground:   215 45% 14%;    /* #0B1F3A */
+
+    --card:         0 0% 100%;
+    --card-foreground: 215 45% 14%;
+
+    --popover:      0 0% 100%;
+    --popover-foreground: 215 45% 14%;
+
+    /* Primary = Azul Escuro #0B1F3A */
+    --primary:      215 70% 14%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary = Laranja #FF6A00 */
+    --secondary:    24 100% 50%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted:        210 10% 96%;
+    --muted-foreground: 215 20% 45%;
+
+    --accent:       24 100% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive:  0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border:       215 20% 88%;
+    --input:        215 20% 88%;
+    --ring:         24 100% 50%;    /* laranja como anel de foco */
+
+    --radius: 0.5rem;
+
+    /* --- Charts --- */
+    --chart-1: 215 70% 14%;
+    --chart-2: 24 100% 50%;
+    --chart-3: 160 60% 45%;
+    --chart-4: 40 90% 55%;
+    --chart-5: 280 65% 60%;
+
+    /* --- Sidebar (admin) --- */
+    --sidebar-background:        215 45% 10%;   /* mais escuro que o brand */
+    --sidebar-foreground:        0 0% 95%;
+    --sidebar-primary:           24 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:            215 40% 18%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border:            215 30% 20%;
+    --sidebar-ring:              24 100% 50%;
+  }
+
+  .dark {
+    --background:   215 45% 8%;
+    --foreground:   0 0% 96%;
+
+    --card:         215 40% 11%;
+    --card-foreground: 0 0% 96%;
+
+    --popover:      215 40% 11%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary:      24 100% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:    215 30% 18%;
+    --secondary-foreground: 0 0% 96%;
+
+    --muted:        215 30% 16%;
+    --muted-foreground: 215 20% 60%;
+
+    --accent:       215 30% 18%;
+    --accent-foreground: 0 0% 96%;
+
+    --destructive:  0 62% 50%;
+    --destructive-foreground: 0 0% 96%;
+
+    --border:       215 30% 20%;
+    --input:        215 30% 20%;
+    --ring:         24 100% 50%;
+
+    --sidebar-background:        215 45% 6%;
+    --sidebar-foreground:        0 0% 92%;
+    --sidebar-primary:           24 100% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent:            215 35% 12%;
+    --sidebar-accent-foreground: 0 0% 92%;
+    --sidebar-border:            215 30% 14%;
+    --sidebar-ring:              24 100% 50%;
+  }
+}
+
+/* ==========================================================================
+   Reset e base
+   ========================================================================== */
+
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+
+  /* Foco acessível — visível apenas com teclado */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2;
+  }
+}
+
+/* ==========================================================================
+   Utilitários de texto de preço
+   ========================================================================== */
+
+@layer components {
+  .price {
+    @apply font-heading font-bold text-brand-primary;
+  }
+
+  .price-sale {
+    @apply font-heading font-bold text-brand-secondary;
+  }
+
+  .price-original {
+    @apply text-muted-foreground line-through text-sm;
+  }
+}
