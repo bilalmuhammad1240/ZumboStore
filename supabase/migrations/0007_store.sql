@@ -145,17 +145,30 @@ CREATE TRIGGER trg_zumbo_cart_items_updated_at
 
 -- ---------------------------------------------------------------------------
 -- TABELA: zumbo.search_logs  (Módulo 10 — Pesquisa)
+--
+-- NOTA DE ARQUITECTURA: tabela particionada por RANGE (created_at).
+-- Em PostgreSQL, o PRIMARY KEY de uma tabela particionada deve incluir
+-- TODAS as colunas de particionamento — por isso o PK é (id, created_at)
+-- e não apenas (id). O índice UNIQUE em id garante unicidade global.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS zumbo.search_logs (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID REFERENCES zumbo.user_profiles(id) ON DELETE SET NULL,
-  query      TEXT NOT NULL,
-  results    INT  NOT NULL DEFAULT 0,
-  clicked_id UUID REFERENCES zumbo.products(id) ON DELETE SET NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id         UUID         NOT NULL DEFAULT gen_random_uuid(),
+  user_id    UUID         REFERENCES zumbo.user_profiles(id) ON DELETE SET NULL,
+  query      TEXT         NOT NULL,
+  results    INT          NOT NULL DEFAULT 0,
+  clicked_id UUID         REFERENCES zumbo.products(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+  -- PK composta obrigatória em tabelas particionadas por created_at
+  PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
--- Partição inicial
+-- Índice para lookup por id sem precisar saber a partição
+CREATE INDEX IF NOT EXISTS idx_zumbo_search_logs_id    ON zumbo.search_logs(id);
+CREATE INDEX IF NOT EXISTS idx_zumbo_search_logs_query ON zumbo.search_logs(query);
+CREATE INDEX IF NOT EXISTS idx_zumbo_search_logs_user  ON zumbo.search_logs(user_id) WHERE user_id IS NOT NULL;
+
+-- Partições por ano — adicionar nova partição manualmente em cada ano
+-- ou via pg_partman (futuro)
 CREATE TABLE IF NOT EXISTS zumbo.search_logs_2025
   PARTITION OF zumbo.search_logs
   FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
@@ -164,11 +177,17 @@ CREATE TABLE IF NOT EXISTS zumbo.search_logs_2026
   PARTITION OF zumbo.search_logs
   FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
 
+CREATE TABLE IF NOT EXISTS zumbo.search_logs_2027
+  PARTITION OF zumbo.search_logs
+  FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
+
 ALTER TABLE zumbo.search_logs ENABLE ROW LEVEL SECURITY;
 
+-- Qualquer visitante pode registar uma pesquisa (anónimo ou autenticado)
 CREATE POLICY "zumbo_search_logs_insert" ON zumbo.search_logs
-  FOR INSERT WITH CHECK (true);   -- qualquer visitante pode inserir
+  FOR INSERT WITH CHECK (true);
 
+-- Apenas staff com acesso a relatórios lê os logs
 CREATE POLICY "zumbo_search_logs_staff_read" ON zumbo.search_logs
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM zumbo.user_profiles WHERE id = auth.uid()
