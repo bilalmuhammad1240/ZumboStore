@@ -50,11 +50,13 @@ export async function middleware(request: NextRequest) {
       // o user_profiles tem RLS e o middleware corre antes dos Server
       // Components, por isso o user pode ainda não ter cookies válidos.
       const adminClient = createAdminClient();
-      const { data: profile } = await adminClient
-        .from("user_profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
+      const { data, error } = await adminClient
+  .from("user_profiles")
+  .select("role")
+  .eq("id", user.id)
+  .single();
+
+const profile = data as Database["public"]["Tables"]["user_profiles"]["Row"] | null;
 
       const staffRoles = ["operator", "manager", "admin", "superadmin"];
       if (!profile || !staffRoles.includes(profile.role)) {
