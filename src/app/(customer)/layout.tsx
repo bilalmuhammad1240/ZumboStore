@@ -20,6 +20,7 @@ export default async function CustomerLayout({
   if (!user) redirect("/auth/login?redirect=/conta");
 
   const { data: profile } = await supabase
+    .schema("zumbo")
     .from("user_profiles")
     .select("full_name, avatar_url")
     .eq("id", user.id)

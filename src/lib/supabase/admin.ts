@@ -63,6 +63,7 @@ export async function requireRole(allowedRoles: UserRole[]) {
   }
 
   const { data: profile, error } = await supabase
+    .schema("zumbo")
     .from("user_profiles")
     .select("id, role, full_name, avatar_url")
     .eq("id", user.id)

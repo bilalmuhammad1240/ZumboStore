@@ -10,6 +10,7 @@ export default async function ContaDashboardPage() {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { data: profile } = await supabase
+    .schema("zumbo")
     .from("user_profiles")
     .select("full_name, role, created_at")
     .eq("id", user!.id)

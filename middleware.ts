@@ -51,11 +51,11 @@ export async function middleware(request: NextRequest) {
       // Components, por isso o user pode ainda não ter cookies válidos.
       const adminClient = createAdminClient();
       const { data: profile } = await adminClient
-  .from<Database["public"]["Tables"]["user_profiles"]["Row"]>("user_profiles")
-  .select("role")
-  .eq("id", user.id)
-  .single();
-
+        .schema("zumbo")
+        .from("user_profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
 
       const staffRoles = ["operator", "manager", "admin", "superadmin"];
       if (!profile || !staffRoles.includes(profile.role)) {
