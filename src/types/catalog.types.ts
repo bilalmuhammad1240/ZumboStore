@@ -29,16 +29,16 @@ export type Category = {
 export type CategoryTree = Category & { children: CategoryTree[] };
 
 export type CreateCategoryInput = {
-  parent_id?:       string | null;
-  name:             string;
-  slug:             string;
-  description?:     string | null;
-  image_url?:       string | null;
-  icon?:            string | null;
-  sort_order?:      number;
-  is_active?:       boolean;
-  meta_title?:      string | null;
-  meta_description?:string | null;
+  parent_id?:        string | null;
+  name:              string;
+  slug?:             string;             // opcional — gerado pelo service se omitido
+  description?:      string | null;
+  image_url?:        string | null;
+  icon?:             string | null;
+  sort_order?:       number;
+  is_active?:        boolean;
+  meta_title?:       string | null;
+  meta_description?: string | null;
 };
 
 export type UpdateCategoryInput = Partial<CreateCategoryInput>;
@@ -62,7 +62,9 @@ export type Brand = {
   updated_at:       string;
 };
 
-export type CreateBrandInput = Omit<Brand, "id" | "created_at" | "updated_at">;
+export type CreateBrandInput = Omit<Brand, "id" | "created_at" | "updated_at"> & {
+  slug?: string;   // opcional — gerado pelo service se omitido
+};
 export type UpdateBrandInput = Partial<CreateBrandInput>;
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { serverDB } from "@/lib/supabase/db";
 import { redirect } from "next/navigation";
 import { User, Package, Heart, MapPin, LogOut } from "lucide-react";
 import Link from "next/link";
@@ -19,8 +20,8 @@ export default async function CustomerLayout({
 
   if (!user) redirect("/auth/login?redirect=/conta");
 
-  const { data: profile } = await supabase
-    .schema("zumbo")
+  const db = await serverDB();
+  const { data: profile } = await db
     .from("user_profiles")
     .select("full_name, avatar_url")
     .eq("id", user.id)

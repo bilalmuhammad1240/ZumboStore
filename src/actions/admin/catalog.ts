@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/supabase/admin";
 import { categoryService, brandService } from "@/services/catalog.service";
 import { categorySchema, brandSchema } from "@/validators/catalog.validator";

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { serverDB } from "@/lib/supabase/db";
 import { Package, Heart, MapPin, Star, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -9,8 +10,8 @@ export default async function ContaDashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .schema("zumbo")
+  const db = await serverDB();
+  const { data: profile } = await db
     .from("user_profiles")
     .select("full_name, role, created_at")
     .eq("id", user!.id)

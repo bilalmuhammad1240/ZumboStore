@@ -1,3 +1,4 @@
+import { serverDB } from "@/lib/supabase/db";
 import { createClient } from "@/lib/supabase/server";
 import { Bell, LogOut, User } from "lucide-react";
 import Link from "next/link";
@@ -18,7 +19,8 @@ export async function AdminHeader({ title, description }: Props) {
   let profileRole = "";
 
   if (user) {
-    const { data: profile } = await supabase
+    const db = await serverDB();
+    const { data: profile } = await db
       .from("user_profiles")
       .select("full_name, role")
       .eq("id", user.id)

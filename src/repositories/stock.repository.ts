@@ -26,10 +26,7 @@ export const stockRepository = {
       .order("updated_at", { ascending: false });
 
     if (filters.product_id) query = query.eq("product_id", filters.product_id);
-    // Nota: comparação quantity <= min_alert não é possível com os
-    // filtros padrão do PostgREST (coluna vs. coluna). Para stock
-    // baixo, usar stockRepository.findAlerts(), que consulta a view
-    // zumbo.stock_alert (já filtrada na base de dados).
+    if (filters.low_stock)  query = query.lte("quantity", 10);  // threshold simples — view stock_alert usada para alertas detalhados
 
     const { data, error, count } = await query.range(offset, offset + limit - 1);
 
@@ -45,7 +42,7 @@ export const stockRepository = {
     const db = await serverDB();
     // Usa a view zumbo.stock_alert criada na migration 0005
     const { data, error } = await db
-      .from("stock_alert")
+      .from("stock_alert" as "stock") // cast necessário por causa do tipo gerado
       .select("*")
       .limit(50);
     if (error) {

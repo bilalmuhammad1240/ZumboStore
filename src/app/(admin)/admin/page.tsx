@@ -1,7 +1,6 @@
 import { AdminHeader } from "@/components/layout/AdminHeader";
 import { settingsService } from "@/services/settings.service";
-import { categoryService } from "@/services/catalog.service";
-import { brandService } from "@/services/catalog.service";
+import { categoryService, brandService } from "@/services/catalog.service";
 import { productService } from "@/services/product.service";
 import { stockService } from "@/services/stock.service";
 import {
