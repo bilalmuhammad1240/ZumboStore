@@ -5,101 +5,74 @@ import type { UserRole } from "@/types/auth.types";
 import { logger } from "@/lib/utils/logger";
 
 /**
- * Cliente Supabase com service role key — bypassa o RLS completamente.
- * USO EXCLUSIVO no servidor (Server Actions, Route Handlers, admin guards).
- * NUNCA importar em Client Components ou expor ao browser.
+ * Cliente admin com service role key — bypassa RLS.
+ * Schema "zumbo" definido como padrão.
+ * USO EXCLUSIVO em Server Actions e Route Handlers protegidos.
  */
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url     = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const svcKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !serviceKey) {
-    logger.error("createAdminClient: variáveis de ambiente em falta", {
-      hasUrl: Boolean(url),
-      hasServiceKey: Boolean(serviceKey),
+  if (!url || !svcKey) {
+    console.error("[createAdminClient] ERRO: variáveis de ambiente em falta", {
+      hasUrl:    Boolean(url),
+      hasSvcKey: Boolean(svcKey),
     });
     throw new Error("Configuração do Supabase Admin incompleta.");
   }
 
-  return createClient<Database>(url, serviceKey, {
-    auth: {
-      // Desactivar persistência de sessão no admin client —
-      // cada chamada é stateless e autenticada pela service key.
-      autoRefreshToken: false,
-      persistSession: false,
-    },
+  return createClient<Database, "zumbo">(url, svcKey, {
+    db:   { schema: "zumbo" },
+    auth: { autoRefreshToken: false, persistSession: false },
   });
 }
 
 // ---------------------------------------------------------------------------
-// Guards de autorização por role
+// Guards de autorização
 // ---------------------------------------------------------------------------
 
-const ADMIN_ROLES: UserRole[] = ["admin", "superadmin", "manager", "operator"];
-const STRICT_ADMIN_ROLES: UserRole[] = ["admin", "superadmin"];
+const ADMIN_ROLES: UserRole[]  = ["admin", "superadmin", "manager", "operator"];
+const STRICT_ROLES: UserRole[] = ["admin", "superadmin"];
 
-/**
- * Importado pelo mozmarkethub como requireAdmin().
- * Aqui generalizado para suportar múltiplos roles (customer, operator, …).
- *
- * Comportamento:
- *  - Não autenticado  → redirect para /auth/login
- *  - Sem role mínimo  → notFound() (não revela a existência da área)
- *  - OK               → devolve { user, profile }
- */
 export async function requireRole(allowedRoles: UserRole[]) {
-  const { createClient: createServerClient } = await import(
-    "@/lib/supabase/server"
-  );
+  const { createClient: createServerClient } = await import("@/lib/supabase/server");
   const supabase = await createServerClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  console.log("[requireRole] auth.getUser:", { userId: user?.id, authError: authError?.message });
 
   if (!user) {
-    logger.warn("requireRole: utilizador não autenticado, a redirecionar");
+    logger.warn("[requireRole] utilizador não autenticado → redirect login");
     redirect("/auth/login");
   }
 
-  const { data: profile, error } = await supabase
-    .schema("zumbo")
+  const { data: profile, error: profileError } = await supabase
     .from("user_profiles")
     .select("id, role, full_name, avatar_url")
     .eq("id", user.id)
     .single();
 
-  if (error || !profile) {
-    logger.error("requireRole: perfil não encontrado", {
-      userId: user.id,
-      error: error?.message,
-    });
+  console.log("[requireRole] profile query:", {
+    userId:  user.id,
+    role:    profile?.role,
+    error:   profileError?.message,
+    allowed: allowedRoles,
+  });
+
+  if (profileError || !profile) {
+    logger.error("[requireRole] perfil não encontrado", { userId: user.id, error: profileError?.message });
     notFound();
   }
 
   if (!allowedRoles.includes(profile.role as UserRole)) {
-    logger.warn("requireRole: role insuficiente", {
-      userId: user.id,
-      role: profile.role,
-      required: allowedRoles,
-    });
+    logger.warn("[requireRole] acesso negado", { userId: user.id, role: profile.role, required: allowedRoles });
     notFound();
   }
 
-  logger.debug("requireRole: acesso concedido", {
-    userId: user.id,
-    role: profile.role,
-  });
-
+  logger.info("[requireRole] acesso concedido", { userId: user.id, role: profile.role });
   return { user, profile };
 }
 
-/** Qualquer membro da equipa interna (operator, manager, admin, superadmin). */
-export async function requireAdmin() {
-  return requireRole(ADMIN_ROLES);
-}
-
-/** Apenas administradores com acesso total (admin, superadmin). */
-export async function requireSuperAdmin() {
-  return requireRole(STRICT_ADMIN_ROLES);
-}
+export async function requireAdmin()      { return requireRole(ADMIN_ROLES);  }
+export async function requireSuperAdmin() { return requireRole(STRICT_ROLES); }

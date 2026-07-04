@@ -123,7 +123,10 @@ export const settingsService = {
   // -------------------------------------------------------------------------
 
   async getCompany(): Promise<Company | null> {
-    return companyRepository.get();
+    console.log("[settingsService.getCompany] a carregar dados da empresa...");
+    const result = await companyRepository.get();
+    console.log("[settingsService.getCompany]", result ? `ok: ${result.name}` : "null — verificar tabela zumbo.company");
+    return result;
   },
 
   async updateCompany(input: Partial<UpdateCompanyInput>): Promise<Company | null> {

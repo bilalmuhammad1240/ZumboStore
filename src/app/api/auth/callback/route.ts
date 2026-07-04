@@ -14,6 +14,7 @@ import { logger } from "@/lib/utils/logger";
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
+  console.log("[auth/callback] params:", Object.fromEntries(searchParams.entries()));
 
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/conta";

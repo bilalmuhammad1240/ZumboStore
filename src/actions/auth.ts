@@ -73,12 +73,14 @@ export async function login(formData: FormData) {
   }
 
   const supabase = await createClient();
+  console.log("[login] tentativa para:", parsed.data.email);
   const { error } = await supabase.auth.signInWithPassword({
     email:    parsed.data.email,
     password: parsed.data.password,
   });
 
   if (error) {
+    console.error("[login] falhou:", { email: parsed.data.email, code: error.code, msg: error.message });
     logger.warn("login: falhou", {
       email: parsed.data.email,
       code:  error.code,
