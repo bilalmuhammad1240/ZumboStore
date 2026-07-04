@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
         .eq("id", user.id)
         .single();
 
-      console.log("[middleware] staff check:", { userId: user.id, role: profile?.role, error: error?.message });
+      console.log("[middleware] staff check:", { userId: user.id, role: role?.message, error: error?.message });
 
       const staffRoles = ["operator", "manager", "admin", "superadmin"];
       if (!profile || !staffRoles.includes(profile.role)) {
